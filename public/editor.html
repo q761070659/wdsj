@@ -1,0 +1,2302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CustomAdvancements 编辑器</title>
+  <script>
+    (function() {
+      const storageKey = 'ca-editor-theme';
+      let stored = null;
+      try { stored = localStorage.getItem(storageKey); } catch {}
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-theme', stored || (prefersDark ? 'dark' : 'light'));
+    })();
+  </script>
+  <style>
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    @keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 12px rgba(80, 227, 194, 0.15); } 50% { box-shadow: 0 0 24px rgba(80, 227, 194, 0.3); } }
+    @keyframes gridDrift { 0% { background-position: 0 0; } 100% { background-position: 140px 100px; } }
+
+    :root {
+      color-scheme: dark;
+      --void: #08090d;
+      --obsidian: #0d1017;
+      --deepslate: #141820;
+      --stone: #1c2130;
+      --cobble: #262d3f;
+      --gravel: #3a4460;
+      --iron: #8892a8;
+      --quartz: #c8cfe0;
+      --snow: #e8ecf4;
+      --emerald: #50e3c2;
+      --emerald-dim: #2a7a6a;
+      --emerald-glow: rgba(80, 227, 194, 0.12);
+      --amethyst: #b07aff;
+      --amethyst-dim: #6b3fad;
+      --redstone: #ff6b6b;
+      --redstone-dim: #8b2020;
+      --gold: #ffd666;
+      --gold-dim: #8a6d1b;
+      --lapis: #5b8cff;
+      --border: rgba(80, 227, 194, 0.08);
+      --border-hover: rgba(80, 227, 194, 0.25);
+      --surface: rgba(20, 24, 32, 0.85);
+      --radius: 6px;
+      --radius-lg: 10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *::-webkit-scrollbar { width: 6px; height: 6px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb { background: var(--cobble); border-radius: 3px; }
+    *::-webkit-scrollbar-thumb:hover { background: var(--gravel); }
+
+    body {
+      font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", "Microsoft YaHei", monospace;
+      background: var(--void);
+      color: var(--quartz);
+      font-size: 13px;
+      line-height: 1.5;
+      overflow: hidden;
+      height: 100vh;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 15% 20%, rgba(80, 227, 194, 0.03) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 85% 80%, rgba(176, 122, 255, 0.025) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      height: 100vh;
+      position: relative;
+      z-index: 1;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(8, 9, 13, 0.95);
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      align-items: center;
+    }
+
+    .toolbar h1 {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: var(--emerald);
+      margin-right: 12px;
+      white-space: nowrap;
+      text-transform: uppercase;
+    }
+
+    .toolbar h1::before {
+      content: '◆ ';
+      color: var(--amethyst);
+      font-size: 10px;
+    }
+
+    .toolbar .group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+    }
+    button, select, input, textarea {
+      border-radius: var(--radius);
+      border: 1px solid var(--cobble);
+      background: var(--obsidian);
+      color: var(--quartz);
+      padding: 6px 10px;
+      font: inherit;
+      font-size: 12px;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+      outline: none;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--emerald-dim);
+      box-shadow: 0 0 0 2px var(--emerald-glow);
+    }
+
+    button {
+      cursor: pointer;
+      background: var(--deepslate);
+      border-color: var(--cobble);
+      font-weight: 500;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+      position: relative;
+      overflow: hidden;
+    }
+
+    button::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.03) 50%, transparent 60%);
+      background-size: 200% 200%;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    button:hover {
+      border-color: var(--border-hover);
+      background: var(--stone);
+    }
+
+    button:hover::after { opacity: 1; animation: shimmer 1.5s ease infinite; }
+    button:active { transform: scale(0.97); }
+
+    button.primary {
+      background: linear-gradient(135deg, rgba(80, 227, 194, 0.15), rgba(80, 227, 194, 0.08));
+      border-color: var(--emerald-dim);
+      color: var(--emerald);
+    }
+    button.primary:hover { border-color: var(--emerald); box-shadow: 0 0 12px var(--emerald-glow); }
+
+    button.danger {
+      background: linear-gradient(135deg, rgba(255, 107, 107, 0.12), rgba(255, 107, 107, 0.06));
+      border-color: var(--redstone-dim);
+      color: var(--redstone);
+    }
+    button.danger:hover { border-color: var(--redstone); box-shadow: 0 0 12px rgba(255, 107, 107, 0.15); }
+
+    button.success {
+      background: linear-gradient(135deg, rgba(91, 140, 255, 0.12), rgba(91, 140, 255, 0.06));
+      border-color: rgba(91, 140, 255, 0.3);
+      color: var(--lapis);
+    }
+    button.success:hover { border-color: var(--lapis); box-shadow: 0 0 12px rgba(91, 140, 255, 0.15); }
+    .content {
+      display: grid;
+      grid-template-columns: 280px 1fr 420px;
+      gap: 1px;
+      background: var(--border);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .content > * {
+      background: var(--obsidian);
+    }
+
+    .right-column {
+      display: grid;
+      grid-template-rows: minmax(280px, 42vh) minmax(200px, 1fr);
+      gap: 1px;
+      background: var(--border);
+      min-height: 0;
+    }
+
+    .right-column > * {
+      background: var(--obsidian);
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(20, 24, 32, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .panel-header h2 {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--iron);
+    }
+
+    .panel-header h2::before {
+      content: '▸ ';
+      color: var(--emerald-dim);
+    }
+
+    .panel-body {
+      padding: 12px;
+      overflow: auto;
+      flex: 1;
+      min-height: 0;
+    }
+    .adv-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .adv-item {
+      padding: 8px 10px;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      background: var(--deepslate);
+      cursor: pointer;
+      transition: all 0.15s;
+      animation: fadeIn 0.2s ease both;
+      position: relative;
+    }
+
+    .adv-item:hover {
+      background: var(--stone);
+      border-color: var(--cobble);
+    }
+
+    .adv-item.active {
+      border-color: var(--emerald-dim);
+      background: rgba(80, 227, 194, 0.06);
+      box-shadow: inset 3px 0 0 var(--emerald);
+    }
+
+    .adv-item .id {
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--snow);
+    }
+
+    .adv-item .meta {
+      color: var(--gravel);
+      font-size: 10px;
+      margin-top: 2px;
+      letter-spacing: 0.3px;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+
+    .field label {
+      font-size: 10px;
+      color: var(--iron);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 600;
+    }
+
+    .field small {
+      color: var(--gravel);
+      font-size: 10px;
+    }
+
+    textarea {
+      min-height: 72px;
+      resize: vertical;
+      font-family: inherit;
+    }
+    .checkbox-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 6px 0 12px;
+    }
+
+    .checkbox {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: var(--radius);
+      border: 1px solid var(--cobble);
+      background: var(--deepslate);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .checkbox:hover { border-color: var(--border-hover); }
+    .checkbox:has(input:checked) {
+      border-color: var(--emerald-dim);
+      background: rgba(80, 227, 194, 0.06);
+      color: var(--emerald);
+    }
+
+    .checkbox input { margin: 0; accent-color: var(--emerald); }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: var(--emerald);
+      background: rgba(80, 227, 194, 0.1);
+      border: 1px solid var(--emerald-dim);
+    }
+
+    .messages {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+
+    .msg {
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      border-left: 3px solid var(--cobble);
+      background: var(--deepslate);
+      white-space: pre-wrap;
+      font-size: 11px;
+      line-height: 1.6;
+      animation: fadeIn 0.2s ease both;
+    }
+
+    .msg.error {
+      border-left-color: var(--redstone);
+      color: #ffaaaa;
+      background: rgba(255, 107, 107, 0.06);
+    }
+
+    .msg.success {
+      border-left-color: var(--emerald);
+      color: #aaffdd;
+      background: rgba(80, 227, 194, 0.06);
+    }
+
+    .msg.info {
+      border-left-color: var(--lapis);
+      color: #aaccff;
+      background: rgba(91, 140, 255, 0.06);
+    }
+    .preview {
+      width: 100%;
+      min-height: 200px;
+      font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", monospace;
+      font-size: 11px;
+      line-height: 1.6;
+      white-space: pre;
+      background: var(--void);
+      border-color: var(--cobble);
+      color: var(--iron);
+      resize: vertical;
+    }
+
+    .footer {
+      padding: 8px 16px;
+      border-top: 1px solid var(--border);
+      color: var(--gravel);
+      font-size: 10px;
+      background: var(--obsidian);
+      letter-spacing: 0.3px;
+    }
+
+    .split-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+
+    .subtle {
+      color: var(--gravel);
+      font-size: 10px;
+      letter-spacing: 0.3px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 3px;
+      background: var(--deepslate);
+      border: 1px solid var(--cobble);
+      font-size: 10px;
+      color: var(--iron);
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+    .coord-preview-shell {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 8px;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .coord-preview {
+      position: relative;
+      overflow: auto;
+      border-radius: var(--radius);
+      border: 1px solid var(--cobble);
+      background:
+        linear-gradient(to right, rgba(80, 227, 194, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(80, 227, 194, 0.03) 1px, transparent 1px),
+        var(--void);
+      background-size: 140px 100px;
+      animation: gridDrift 60s linear infinite;
+      min-height: 200px;
+      padding: 12px;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .coord-preview.dragging-canvas { cursor: grabbing; }
+
+    .coord-canvas {
+      position: relative;
+      min-width: 100%;
+      min-height: 100%;
+    }
+
+    .coord-empty {
+      display: grid;
+      place-items: center;
+      min-height: 200px;
+      color: var(--gravel);
+      text-align: center;
+      padding: 24px;
+      font-size: 12px;
+    }
+
+    .coord-node {
+      position: absolute;
+      width: 124px;
+      min-height: 68px;
+      padding: 8px 10px;
+      border-radius: var(--radius);
+      border: 1px solid var(--cobble);
+      background: rgba(13, 16, 23, 0.95);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      cursor: grab;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+      touch-action: none;
+    }
+
+    .coord-node.dragging {
+      cursor: grabbing;
+      transform: scale(1.04);
+      z-index: 3;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    }
+
+    .coord-node:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+    .coord-node.selected {
+      border-color: var(--emerald);
+      box-shadow: 0 0 0 1px var(--emerald-dim), 0 8px 24px rgba(0, 0, 0, 0.5);
+      animation: pulseGlow 3s ease infinite;
+    }
+
+    .coord-node.root {
+      outline: 1px solid var(--gold-dim);
+      outline-offset: 2px;
+    }
+
+    .coord-node.conflict {
+      border-color: var(--redstone);
+      box-shadow: 0 0 0 1px var(--redstone-dim), 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+
+    .coord-node .node-id {
+      font-size: 10px;
+      color: var(--gravel);
+      margin-bottom: 2px;
+      word-break: break-all;
+      letter-spacing: 0.3px;
+    }
+
+    .coord-node .node-title {
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.3;
+      margin-bottom: 4px;
+      word-break: break-word;
+    }
+
+    .coord-node .node-meta {
+      font-size: 9px;
+      color: var(--iron);
+      letter-spacing: 0.3px;
+    }
+
+    .coord-lines {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: visible;
+    }
+
+    .coord-lines line {
+      stroke: rgba(80, 227, 194, 0.2);
+      stroke-width: 1.5;
+      stroke-dasharray: 4 3;
+    }
+
+    .coord-axis {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--gravel);
+      font-size: 10px;
+    }
+
+    .inner-panel {
+      border: 1px solid var(--cobble);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .inner-panel > .panel-header {
+      background: rgba(28, 33, 48, 0.4);
+    }
+
+    .inner-panel > .panel-body {
+      padding: 10px 12px;
+      overflow: visible;
+      flex: none;
+    }
+
+    @media (max-width: 1400px) {
+      .content { grid-template-columns: 240px 1fr; }
+      .right-column { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 900px) {
+      body { overflow: auto; height: auto; }
+      .app { height: auto; }
+      .content { grid-template-columns: 1fr; }
+      .panel-body { height: auto; max-height: none; }
+      .field-grid { grid-template-columns: 1fr; }
+      .right-column { grid-template-rows: auto auto; }
+    }
+  </style>
+  <link rel="stylesheet" href="editor-ui-refresh.css">
+</head>
+<body>
+<div class="app">
+  <div class="toolbar">
+    <div class="toolbar-brand">
+      <div class="toolbar-kicker">CustomAdvancements Editor</div>
+      <h1>成就配置编辑器</h1>
+      <div class="toolbar-subtitle">面向服主与整合包作者的 YAML 可视化编辑器，优先保证导入、校验和导出的效率。</div>
+    </div>
+    <div class="toolbar-actions">
+      <button id="themeToggleBtn" class="theme-toggle" type="button" aria-label="切换深浅主题">
+        <span class="theme-icon" aria-hidden="true">☀</span>
+        <span id="themeToggleText">浅色</span>
+      </button>
+      <div class="action-cluster">
+        <span class="group-label">数据</span>
+        <button id="loadSampleBtn" type="button">载入示例</button>
+        <button id="importTextBtn" type="button">粘贴导入</button>
+        <button id="importFileBtn" type="button">选择文件</button>
+      </div>
+      <div class="action-cluster">
+        <span class="group-label">编辑</span>
+        <button id="addAdvBtn" class="primary" type="button">新增成就</button>
+        <button id="duplicateBtn" type="button">复制当前</button>
+        <button id="deleteBtn" class="danger" type="button">删除当前</button>
+        <button id="validateBtn" type="button">立即校验</button>
+      </div>
+      <div class="action-cluster">
+        <span class="group-label">导出</span>
+        <button id="copyYamlBtn" class="success" type="button">复制 YAML</button>
+        <button id="downloadYamlBtn" class="success" type="button">下载 YAML</button>
+        <button id="formatBtn" type="button">刷新预览</button>
+      </div>
+    </div>
+    <div class="toolbar-meta">
+      <span id="selectionSummary" class="status-pill neutral">未选择成就</span>
+      <span id="validationBadge" class="status-pill neutral">待校验</span>
+    </div>
+    <input id="fileInput" type="file" accept=".yml,.yaml,text/plain" hidden>
+  </div>
+
+  <div class="content">
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-heading">
+          <h2>成就列表</h2>
+          <div class="panel-subtitle">先在左侧选择条目，再到中间编辑细节。</div>
+        </div>
+        <span id="stats" class="subtle">0 项</span>
+      </div>
+      <div class="panel-body">
+        <div class="list-toolbar">
+          <input id="searchInput" type="text" placeholder="搜索 ID / 标题..." style="width:100%" aria-label="搜索成就">
+        </div>
+        <div id="advList" class="adv-list"></div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-heading">
+          <h2>成就编辑</h2>
+          <div class="panel-subtitle">按“基础信息 → 显示布局 → 展示行为 → 触发奖励”的顺序填写。</div>
+        </div>
+        <span id="currentBadge" class="badge">未选择</span>
+      </div>
+      <div class="panel-body">
+        <div class="editor-shell">
+          <div id="messages" class="messages"></div>
+          <div id="emptyEditorState" class="empty-state" hidden>请选择左侧成就，或点击上方“新增成就”开始配置。</div>
+
+          <section class="section-card">
+            <div class="section-header">
+              <div class="section-title">基础信息</div>
+              <div class="section-desc">先定义 ID、父成就、标题和描述，这些字段决定了条目的结构和展示名称。</div>
+            </div>
+            <div class="section-body">
+              <div class="field-grid">
+                <div class="field">
+                  <label for="idInput">ID</label>
+                  <input id="idInput" type="text" placeholder="例如 first_join">
+                </div>
+                <div class="field">
+                  <label for="parentInput">父成就</label>
+                  <select id="parentInput"></select>
+                </div>
+                <div class="field full">
+                  <label for="titleInput">标题</label>
+                  <input id="titleInput" type="text" placeholder="<gold>初来乍到</gold> 或 &a初来乍到">
+                  <small>支持 MiniMessage 与传统 &amp; 色码</small>
+                </div>
+                <div class="field full">
+                  <label>标题预览</label>
+                  <div id="miniPreviewTitle" class="mini-preview-box" aria-live="polite"></div>
+                </div>
+                <div class="field full">
+                  <label for="descriptionInput">描述（每行一条）</label>
+                  <textarea id="descriptionInput" placeholder="<gray>第一次来到服务器</gray>"></textarea>
+                </div>
+                <div class="field full">
+                  <label>描述预览</label>
+                  <div id="miniPreviewDescription" class="mini-preview-box mini-preview-multiline" aria-live="polite"></div>
+                </div>
+                <div class="field">
+                  <label for="iconInput">图标材质</label>
+                  <input id="iconInput" type="text" list="materialList" placeholder="GRASS_BLOCK">
+                  <small>Bukkit Material</small>
+                </div>
+                <div class="field">
+                  <label for="iconCeInput">CE 图标 ID</label>
+                  <input id="iconCeInput" type="text" placeholder="namespace:id">
+                  <small>CraftEngine 物品 ID</small>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section-card">
+            <div class="section-header">
+              <div class="section-title">显示与布局</div>
+              <div class="section-desc">稀有度和坐标会影响列表层级、坐标图展示以及最终 YAML 输出。</div>
+            </div>
+            <div class="section-body">
+              <div class="field-grid">
+                <div class="field">
+                  <label for="rarityInput">稀有度</label>
+                  <select id="rarityInput">
+                    <option value="common">common</option>
+                    <option value="uncommon">uncommon</option>
+                    <option value="rare">rare</option>
+                    <option value="epic">epic</option>
+                    <option value="legendary">legendary</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="backgroundInput">背景（仅根成就常用）</label>
+                  <input id="backgroundInput" type="text" placeholder="minecraft:textures/block/obsidian.png">
+                </div>
+                <div class="field">
+                  <label for="xInput">X</label>
+                  <input id="xInput" type="number" step="1">
+                </div>
+                <div class="field">
+                  <label for="yInput">Y</label>
+                  <input id="yInput" type="number" step="1" min="0">
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section-card">
+            <div class="section-header">
+              <div class="section-title">展示行为</div>
+              <div class="section-desc">决定成就是不是根节点、是否弹 Toast、是否广播聊天以及是否隐藏。</div>
+            </div>
+            <div class="section-body">
+              <div class="checkbox-row">
+                <label class="checkbox"><input id="rootInput" type="checkbox">root</label>
+                <label class="checkbox"><input id="showToastInput" type="checkbox">show-toast</label>
+                <label class="checkbox"><input id="announceChatInput" type="checkbox">announce-chat</label>
+                <label class="checkbox"><input id="hiddenInput" type="checkbox">hidden</label>
+              </div>
+            </div>
+          </section>
+
+          <section class="section-card">
+            <div class="section-header">
+              <div class="section-title">Toast、触发器与奖励</div>
+              <div class="section-desc">只有需要展示提醒、监听特定事件或发放奖励时再填写这部分即可。</div>
+            </div>
+            <div class="section-body">
+              <div class="checkbox-row">
+                <label class="checkbox"><input id="toastEnabledInput" type="checkbox">toast.enabled</label>
+              </div>
+              <div class="field-grid" style="margin-top:12px">
+                <div class="field">
+                  <label for="toastTitleInput">toast.title</label>
+                  <input id="toastTitleInput" type="text" placeholder="&6[成就达成] &f%title%">
+                </div>
+                <div class="field full">
+                  <label>toast.title 预览</label>
+                  <div id="miniPreviewToast" class="mini-preview-box" aria-live="polite"></div>
+                </div>
+                <div class="field">
+                  <label for="toastIconInput">toast.icon</label>
+                  <input id="toastIconInput" type="text" list="materialList" placeholder="DIAMOND">
+                </div>
+                <div class="field full">
+                  <label for="triggerTypeInput">单触发器类型</label>
+                  <select id="triggerTypeInput">
+                    <option value="">(无)</option>
+                    <option value="vanilla_advancement">vanilla_advancement</option>
+                    <option value="ce_block_place">ce_block_place</option>
+                    <option value="ce_block_break">ce_block_break</option>
+                    <option value="ce_block_interact">ce_block_interact</option>
+                    <option value="ce_furniture_place">ce_furniture_place</option>
+                    <option value="ce_furniture_break">ce_furniture_break</option>
+                    <option value="ce_furniture_interact">ce_furniture_interact</option>
+                    <option value="ce_item_get">ce_item_get</option>
+                    <option value="bartershop_trade_success">bartershop_trade_success</option>
+                    <option value="bartershop_trade_fail">bartershop_trade_fail</option>
+                    <option value="bartershop_trade_attempt">bartershop_trade_attempt</option>
+                    <option value="player_statistic">player_statistic</option>
+                    <option value="mythicmobs_kill">mythicmobs_kill</option>
+                    <option value="player_join_first">player_join_first</option>
+                    <option value="player_death">player_death</option>
+                    <option value="block_break">block_break</option>
+                    <option value="block_interact">block_interact</option>
+                    <option value="offhand_swap">offhand_swap</option>
+                    <option value="papi_check">papi_check</option>
+                    <option value="player_command">player_command</option>
+                    <option value="worldguard_region">worldguard_region</option>
+                    <option value="fake_block_bomb_break">fake_block_bomb_break</option>
+                    <option value="craft_item">craft_item</option>
+                    <option value="fish_item">fish_item</option>
+                    <option value="enchant_item">enchant_item</option>
+                    <option value="lands_area_enter">lands_area_enter</option>
+                    <option value="lands_area_leave">lands_area_leave</option>
+                    <option value="lands_first_enter">lands_first_enter</option>
+                  </select>
+                </div>
+                <div class="field full">
+                  <label for="triggerIdInput">触发目标 ID</label>
+                  <input id="triggerIdInput" type="text" placeholder="namespace:id">
+                  <small>例如 `minecraft:story/mine_stone`、`craftengine:oak_crate`；CE / vanilla 也可直接写命名空间如 `craftengine`；bartershop_* 填 `shopId:entryId`；player_statistic 填 `jump`、`mine_block:stone`、`kill_entity:zombie`；mythicmobs_kill 填 internalName；player_join_first/player_death/offhand_swap 无需填写；block_break/block_interact 填 Material 名如 `stone`；papi_check 填条件如 `%player_level%>=10`；player_command 填命令名如 `sethome`；craft_item 填合成结果如 `diamond_sword`；fish_item 填钓到的物品如 `cod`；enchant_item 填附魔效果如 `sharpness`；lands_area_enter/leave 填区域名称；lands_first_enter 填领地名称</small>
+                </div>
+                <div class="field">
+                  <label for="triggerCountInput">触发次数（count，默认1）</label>
+                  <input id="triggerCountInput" type="number" min="1" value="1" style="width:80px;">
+                </div>
+                <div class="field full">
+                  <label>多触发器顺序链（按顺序依次触发）</label>
+                  <div id="triggersChainList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px;"></div>
+                  <button type="button" id="addTriggerChainBtn" class="btn btn-sm">+ 添加步骤</button>
+                  <small>配置后将忽略上方单触发器，按顺序完成所有步骤才触发成就</small>
+                </div>
+                <div class="field">
+                  <label><input type="checkbox" id="repeatableInput"> 可重复完成</label>
+                </div>
+                <div class="field">
+                  <label for="dailyLimitInput">每日限制次数（0=不限）</label>
+                  <input id="dailyLimitInput" type="number" min="0" value="0" style="width:80px;">
+                </div>
+                <div class="field full">
+                  <label for="rewardCommandsInput">奖励命令（每行一条）</label>
+                  <textarea id="rewardCommandsInput" placeholder="say %player_name% 解锁了 %adv_title%&#10;give %player_name% diamond 1"></textarea>
+                  <small>支持内置占位符及 PlaceholderAPI</small>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel side-panel">
+      <div class="panel-header">
+        <div class="panel-heading">
+          <h2>预览与输出</h2>
+          <div class="panel-subtitle">坐标视图和 YAML 会跟随当前编辑状态同步更新。</div>
+        </div>
+        <div class="segmented-tabs" role="tablist" aria-label="预览切换">
+          <button id="tabMapBtn" class="tab-btn active" type="button" role="tab" aria-selected="true" aria-controls="side-panel-map" data-side-tab="map">坐标</button>
+          <button id="tabYamlBtn" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="side-panel-yaml" data-side-tab="yaml">YAML</button>
+        </div>
+      </div>
+      <div class="panel-body side-panel-body">
+        <section id="side-panel-map" class="side-view active" role="tabpanel" data-side-panel="map">
+          <div class="side-summary">
+            <span id="coordSummary" class="subtle">未生成</span>
+          </div>
+          <div class="coord-preview-shell">
+            <div>
+              <div class="legend">
+                <span class="legend-item"><span class="legend-dot" style="background:var(--emerald)"></span>选中</span>
+                <span class="legend-item"><span class="legend-dot" style="background:var(--gold)"></span>Root</span>
+                <span class="legend-item"><span class="legend-dot" style="background:var(--redstone)"></span>冲突</span>
+              </div>
+              <div class="coord-axis">
+                <span>← X →</span>
+                <span>↑ Y ↓</span>
+              </div>
+            </div>
+            <div id="coordPreview" class="coord-preview"></div>
+          </div>
+        </section>
+        <section id="side-panel-yaml" class="side-view" role="tabpanel" data-side-panel="yaml">
+          <div class="side-summary">
+            <span class="subtle">可直接复制为 advancements/example.yml</span>
+          </div>
+          <div class="split-actions">
+            <button id="syncPreviewBtn" type="button">刷新预览</button>
+            <button id="applyPreviewBtn" type="button">导入编辑器</button>
+            <button id="clearPreviewBtn" type="button">清空</button>
+          </div>
+          <textarea id="yamlPreview" class="preview" spellcheck="false"></textarea>
+        </section>
+      </div>
+    </section>
+  </div>
+
+  <div class="footer">
+    ◆ CustomAdvancements Editor · 支持导入、编辑、校验与导出 `advancements/example.yml`，兼容 MiniMessage 与传统色码。
+  </div>
+</div>
+<datalist id="materialList"></datalist>
+<script>
+  const sampleYaml = `page:
+  namespace: customadv_example
+  background: minecraft:textures/block/obsidian.png
+  auto-show-tab: true
+  auto-grant-root: true
+  show-toast-to-team: false
+  announce-chat-only-to-team: false
+
+advancements:
+  root:
+    root: true
+    title: "&6服务器成就"
+    description:
+      - "&7自定义成就总览"
+      - "&8编辑 advancements/example.yml 即可扩展当前页面"
+    icon: NETHER_STAR
+    rarity: legendary
+    x: 0
+    y: 0
+    show-toast: false
+    announce-chat: false
+    hidden: false
+
+  first_join:
+    parent: root
+    title: "&a初来乍到"
+    description:
+      - "&7第一次来到服务器"
+    icon: GRASS_BLOCK
+    rarity: common
+    x: 1
+    y: 0
+    show-toast: true
+    announce-chat: false
+    hidden: false
+
+  stone_age:
+    parent: first_join
+    title: "<yellow>石器时代</yellow>"
+    description:
+      - "<gray>完成原版成就 <white>minecraft:story/mine_stone</white></gray>"
+    icon: STONE_PICKAXE
+    rarity: uncommon
+    x: 2
+    y: 0
+    show-toast: true
+    announce-chat: false
+    hidden: false
+    trigger:
+      type: vanilla_advancement
+      id: minecraft:story/mine_stone
+
+  explorer:
+    parent: stone_age
+    title: "&b探索者"
+    description:
+      - "&7踏上更远的旅程"
+      - "&8示例稀有度：稀有"
+    icon: COMPASS
+    rarity: rare
+    x: 2
+    y: 1
+    show-toast: true
+    announce-chat: true
+    hidden: false
+    toast:
+      enabled: true
+      title: "&b你获得了稀有成就：&f%title%"
+      icon: DIAMOND
+
+  boss_hunter:
+    parent: explorer
+    title: "&5传奇猎手"
+    description:
+      - "&7击败真正的强敌"
+    icon: NETHERITE_SWORD
+    rarity: legendary
+    x: 3
+    y: 0
+    show-toast: true
+    announce-chat: true
+    hidden: false
+    toast:
+      enabled: true
+      title: "&5传奇成就解锁：&f%title%"
+      icon: ENCHANTED_GOLDEN_APPLE
+
+  bartershop_trader:
+    parent: boss_hunter
+    title: "<green>贸易新星</green>"
+    description:
+      - "<gray>在 starter 商店累计成功交易 10 次</gray>"
+    icon: EMERALD
+    rarity: epic
+    x: 4
+    y: 0
+    show-toast: true
+    announce-chat: false
+    hidden: false
+    trigger:
+      type: bartershop_trade_success
+      id: starter:copper_to_emerald
+      count: 10
+
+  statistic_jump_master:
+    parent: bartershop_trader
+    title: "<aqua>跳跃达人</aqua>"
+    description:
+      - "<gray>累计跳跃 100 次</gray>"
+    icon: RABBIT_FOOT
+    rarity: rare
+    x: 5
+    y: 0
+    show-toast: true
+    announce-chat: false
+    hidden: false
+    trigger:
+      type: player_statistic
+      id: jump
+      count: 100
+`;
+const MATERIALS = [
+  'STONE','GRASS_BLOCK','DIRT','COBBLESTONE','OAK_PLANKS','SPRUCE_PLANKS','BIRCH_PLANKS','JUNGLE_PLANKS','ACACIA_PLANKS','DARK_OAK_PLANKS',
+  'MANGROVE_PLANKS','CHERRY_PLANKS','BAMBOO_PLANKS','CRIMSON_PLANKS','WARPED_PLANKS','SAND','RED_SAND','GLASS','OBSIDIAN','DEEPSLATE',
+  'TUFF','POLISHED_TUFF','IRON_INGOT','GOLD_INGOT','DIAMOND','EMERALD','NETHERITE_INGOT','STICK','PAPER','BOOK',
+  'COMPASS','CLOCK','CHEST','BARREL','CRAFTING_TABLE','FURNACE','ANVIL','SMITHING_TABLE','ENCHANTING_TABLE','NETHER_STAR',
+  'TOTEM_OF_UNDYING','SHIELD','BOW','CROSSBOW','TRIDENT','RABBIT_FOOT','DIAMOND_SWORD','NETHERITE_SWORD','IRON_PICKAXE','DIAMOND_PICKAXE','NETHERITE_PICKAXE',
+  'DIAMOND_AXE','NETHERITE_AXE','APPLE','GOLDEN_APPLE','ENCHANTED_GOLDEN_APPLE','CARROT','BREAD','COOKED_BEEF','POTION','EXPERIENCE_BOTTLE',
+  'ENDER_PEARL','ENDER_EYE','BLAZE_ROD','GHAST_TEAR','SLIME_BALL','MAGMA_CREAM','AMETHYST_SHARD','COPPER_INGOT','RAW_IRON','RAW_GOLD'
+];
+
+const THEME_STORAGE_KEY = 'ca-editor-theme';
+
+const state = {
+  advancements: [],
+  selectedId: null,
+  search: '',
+  activeSideTab: 'map',
+  theme: document.documentElement.getAttribute('data-theme') || 'dark',
+  page: {
+    namespace: 'customadv_example',
+    background: 'minecraft:textures/block/obsidian.png',
+    autoShowTab: true,
+    autoGrantRoot: true,
+    showToastToTeam: false,
+    announceChatOnlyToTeam: false
+  },
+  interaction: {
+    panningCanvas: false,
+    draggingNode: false,
+    suppressClick: false
+  }
+};
+
+const els = {
+  advList: document.getElementById('advList'),
+  stats: document.getElementById('stats'),
+  messages: document.getElementById('messages'),
+  themeToggleBtn: document.getElementById('themeToggleBtn'),
+  themeToggleText: document.getElementById('themeToggleText'),
+  yamlPreview: document.getElementById('yamlPreview'),
+  coordPreview: document.getElementById('coordPreview'),
+  coordSummary: document.getElementById('coordSummary'),
+  currentBadge: document.getElementById('currentBadge'),
+  selectionSummary: document.getElementById('selectionSummary'),
+  validationBadge: document.getElementById('validationBadge'),
+  emptyEditorState: document.getElementById('emptyEditorState'),
+  searchInput: document.getElementById('searchInput'),
+  fileInput: document.getElementById('fileInput'),
+  idInput: document.getElementById('idInput'),
+  parentInput: document.getElementById('parentInput'),
+  titleInput: document.getElementById('titleInput'),
+  miniPreviewTitle: document.getElementById('miniPreviewTitle'),
+  descriptionInput: document.getElementById('descriptionInput'),
+  miniPreviewDescription: document.getElementById('miniPreviewDescription'),
+  iconInput: document.getElementById('iconInput'),
+  iconCeInput: document.getElementById('iconCeInput'),
+  rarityInput: document.getElementById('rarityInput'),
+  xInput: document.getElementById('xInput'),
+  yInput: document.getElementById('yInput'),
+  backgroundInput: document.getElementById('backgroundInput'),
+  rootInput: document.getElementById('rootInput'),
+  showToastInput: document.getElementById('showToastInput'),
+  announceChatInput: document.getElementById('announceChatInput'),
+  hiddenInput: document.getElementById('hiddenInput'),
+  toastEnabledInput: document.getElementById('toastEnabledInput'),
+  toastTitleInput: document.getElementById('toastTitleInput'),
+  miniPreviewToast: document.getElementById('miniPreviewToast'),
+  toastIconInput: document.getElementById('toastIconInput'),
+  triggerTypeInput: document.getElementById('triggerTypeInput'),
+  triggerIdInput: document.getElementById('triggerIdInput'),
+  triggerCountInput: document.getElementById('triggerCountInput'),
+  triggersChainList: document.getElementById('triggersChainList'),
+  addTriggerChainBtn: document.getElementById('addTriggerChainBtn'),
+  repeatableInput: document.getElementById('repeatableInput'),
+  dailyLimitInput: document.getElementById('dailyLimitInput'),
+  rewardCommandsInput: document.getElementById('rewardCommandsInput'),
+  sideTabButtons: Array.from(document.querySelectorAll('[data-side-tab]')),
+  sidePanels: Array.from(document.querySelectorAll('[data-side-panel]'))
+};
+
+const formControls = [
+  els.idInput,
+  els.parentInput,
+  els.titleInput,
+  els.descriptionInput,
+  els.iconInput,
+  els.iconCeInput,
+  els.rarityInput,
+  els.xInput,
+  els.yInput,
+  els.backgroundInput,
+  els.rootInput,
+  els.showToastInput,
+  els.announceChatInput,
+  els.hiddenInput,
+  els.toastEnabledInput,
+  els.toastTitleInput,
+  els.toastIconInput,
+  els.triggerTypeInput,
+  els.triggerIdInput,
+  els.rewardCommandsInput
+];
+
+const MINI_NAMED_COLORS = {
+  black: '#000000',
+  dark_blue: '#0000aa',
+  dark_green: '#00aa00',
+  dark_aqua: '#00aaaa',
+  dark_red: '#aa0000',
+  dark_purple: '#aa00aa',
+  gold: '#ffaa00',
+  gray: '#aaaaaa',
+  grey: '#aaaaaa',
+  dark_gray: '#555555',
+  dark_grey: '#555555',
+  blue: '#5555ff',
+  green: '#55ff55',
+  aqua: '#55ffff',
+  red: '#ff5555',
+  light_purple: '#ff55ff',
+  yellow: '#ffff55',
+  white: '#ffffff'
+};
+
+const MINI_LEGACY_CODES = {
+  '0': '#000000',
+  '1': '#0000aa',
+  '2': '#00aa00',
+  '3': '#00aaaa',
+  '4': '#aa0000',
+  '5': '#aa00aa',
+  '6': '#ffaa00',
+  '7': '#aaaaaa',
+  '8': '#555555',
+  '9': '#5555ff',
+  a: '#55ff55',
+  b: '#55ffff',
+  c: '#ff5555',
+  d: '#ff55ff',
+  e: '#ffff55',
+  f: '#ffffff'
+};
+
+const MINI_FORMAT_CODES = {
+  l: 'bold',
+  o: 'italic',
+  n: 'underlined',
+  m: 'strikethrough',
+  k: 'obfuscated'
+};
+
+const MINI_RAINBOW = ['#ff5555', '#ffaa00', '#ffff55', '#55ff55', '#55ffff', '#5555ff', '#ff55ff'];
+
+function createDefaultAdvancement() {
+  return {
+    id: nextId(),
+    root: false,
+    parent: state.advancements.find(a => a.root)?.id || '',
+    title: '&f新成就',
+    description: ['&7填写描述'],
+    icon: 'STONE',
+    iconCe: '',
+    rarity: 'common',
+    x: state.advancements.length,
+    y: 0,
+    background: '',
+    showToast: true,
+    announceChat: false,
+    hidden: false,
+    toast: { enabled: false, title: '', icon: '' },
+    trigger: { type: '', id: '' },
+    triggers: [],
+    repeatable: false,
+    dailyLimit: 0,
+    rewards: { commands: [] }
+  };
+}
+
+function nextId() {
+  let i = state.advancements.length + 1;
+  while (state.advancements.some(a => a.id === `adv_${i}`)) i++;
+  return `adv_${i}`;
+}
+
+function escapeYamlString(value) {
+  return '"' + String(value ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+}
+
+function unquote(value) {
+  const v = value.trim();
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+    return v.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+  }
+  return v;
+}
+
+function parseScalar(value) {
+  const raw = value.trim();
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  if (/^-?\d+(\.\d+)?$/.test(raw)) return Number(raw);
+  return unquote(raw);
+}
+
+function parseYaml(text) {
+  const lines = text.replace(/\r/g, '').split('\n');
+  const advancements = [];
+  let inPage = false;
+  let inAdvancements = false;
+  let current = null;
+  let inDescription = false;
+  let inToast = false;
+  let inTrigger = false;
+  let inRewards = false;
+  let inTriggersChain = false;
+  let inTriggersChainItem = false;
+  const parsedPage = {};
+
+  for (const originalLine of lines) {
+    const line = originalLine.replace(/\t/g, '    ');
+    if (!line.trim() || line.trim().startsWith('#')) continue;
+
+    const indent = line.match(/^ */)[0].length;
+    const trimmed = line.trim();
+
+    if (indent === 0 && trimmed === 'page:') {
+      inPage = true;
+      inAdvancements = false;
+      continue;
+    }
+
+    if (indent === 0 && trimmed === 'advancements:') {
+      inAdvancements = true;
+      inPage = false;
+      current = null;
+      continue;
+    }
+
+    if (inPage && indent === 2 && trimmed.includes(':')) {
+      const idx = trimmed.indexOf(':');
+      const key = trimmed.slice(0, idx).trim();
+      const value = parseScalar(trimmed.slice(idx + 1));
+      switch (key) {
+        case 'namespace': parsedPage.namespace = String(value ?? ''); break;
+        case 'background': parsedPage.background = String(value ?? ''); break;
+        case 'auto-show-tab': parsedPage.autoShowTab = Boolean(value); break;
+        case 'auto-grant-root': parsedPage.autoGrantRoot = Boolean(value); break;
+        case 'show-toast-to-team': parsedPage.showToastToTeam = Boolean(value); break;
+        case 'announce-chat-only-to-team': parsedPage.announceChatOnlyToTeam = Boolean(value); break;
+      }
+      continue;
+    }
+
+    if (!inAdvancements) continue;
+
+    if (indent === 2 && trimmed.endsWith(':')) {
+      if (current) advancements.push(current);
+      current = {
+        id: trimmed.slice(0, -1),
+        root: false,
+        parent: '',
+        title: '',
+        description: [],
+        icon: 'STONE',
+        iconCe: '',
+        rarity: 'common',
+        x: 0,
+        y: 0,
+        background: '',
+        showToast: true,
+        announceChat: false,
+        hidden: false,
+        toast: { enabled: false, title: '', icon: '' },
+        trigger: { type: '', id: '' },
+        triggers: [],
+        repeatable: false,
+        dailyLimit: 0,
+        rewards: { commands: [] }
+      };
+      inDescription = false;
+      inToast = false;
+      inTrigger = false;
+      inRewards = false;
+      inTriggersChain = false;
+      inTriggersChainItem = false;
+      continue;
+    }
+
+    if (!current) continue;
+
+    if (indent === 4 && trimmed === 'description:') {
+      inDescription = true; inToast = false; inTrigger = false; inRewards = false;
+      current.description = [];
+      continue;
+    }
+    if (indent === 4 && trimmed === 'toast:') {
+      inDescription = false; inToast = true; inTrigger = false; inRewards = false;
+      continue;
+    }
+    if (indent === 4 && trimmed === 'trigger:') {
+      inDescription = false; inToast = false; inTrigger = true; inRewards = false; inTriggersChain = false;
+      current.trigger ||= { type: '', id: '' };
+      continue;
+    }
+    if (indent === 4 && trimmed === 'triggers:') {
+      inDescription = false; inToast = false; inTrigger = false; inRewards = false; inTriggersChain = true;
+      current.triggers = [];
+      continue;
+    }
+    if (indent === 4 && trimmed === 'rewards:') {
+      inDescription = false; inToast = false; inTrigger = false; inRewards = true; inTriggersChain = false;
+      current.rewards ||= { commands: [] };
+      continue;
+    }
+    if (indent === 6 && trimmed === 'commands:' && inRewards) {
+      current.rewards.commands = [];
+      continue;
+    }
+
+    if (indent === 6 && inDescription && trimmed.startsWith('- ')) {
+      current.description.push(unquote(trimmed.slice(2)));
+      continue;
+    }
+    if (indent === 8 && inRewards && trimmed.startsWith('- ')) {
+      current.rewards.commands.push(unquote(trimmed.slice(2)));
+      continue;
+    }
+    if (indent === 6 && inToast && trimmed.includes(':')) {
+      const idx = trimmed.indexOf(':');
+      const key = trimmed.slice(0, idx).trim();
+      const value = parseScalar(trimmed.slice(idx + 1));
+      if (key === 'enabled') current.toast.enabled = Boolean(value);
+      if (key === 'title') current.toast.title = String(value ?? '');
+      if (key === 'icon') current.toast.icon = String(value ?? '');
+      continue;
+    }
+    if (indent === 6 && inTriggersChain && trimmed.startsWith('- type:')) {
+      const t = trimmed.slice('- type:'.length).trim();
+      current.triggers.push({ type: t, id: '', count: 1 });
+      inTriggersChainItem = true;
+      continue;
+    }
+    if (indent === 8 && inTriggersChain && inTriggersChainItem && trimmed.startsWith('id:')) {
+      const v = trimmed.slice('id:'.length).trim();
+      if (current.triggers.length > 0) current.triggers[current.triggers.length - 1].id = unquote(v);
+      continue;
+    }
+    if (indent === 8 && inTriggersChain && inTriggersChainItem && trimmed.startsWith('count:')) {
+      const v = parseInt(trimmed.slice('count:'.length).trim()) || 1;
+      if (current.triggers.length > 0) current.triggers[current.triggers.length - 1].count = v;
+      continue;
+    }
+    if (indent === 6 && inTriggersChain && trimmed.includes(':') && !trimmed.startsWith('- ')) {
+      const idx = trimmed.indexOf(':');
+      const key = trimmed.slice(0, idx).trim();
+      const val = trimmed.slice(idx + 1).trim();
+      if (key === 'id' && current.triggers.length > 0) current.triggers[current.triggers.length - 1].id = unquote(val);
+      if (key === 'count' && current.triggers.length > 0) current.triggers[current.triggers.length - 1].count = parseInt(val) || 1;
+      continue;
+    }
+    if (indent === 6 && inTriggersChain && trimmed.startsWith('- ') && trimmed.includes('type:')) {
+      const typeMatch = trimmed.match(/type:\s*(\S+)/);
+      const idMatch = trimmed.match(/id:\s*(\S+)/);
+      const cntMatch = trimmed.match(/count:\s*(\d+)/);
+      if (typeMatch) current.triggers.push({ type: typeMatch[1], id: idMatch ? unquote(idMatch[1]) : '', count: cntMatch ? parseInt(cntMatch[1]) : 1 });
+      continue;
+    }
+    if (indent === 6 && inTrigger && trimmed.includes(':')) {
+      const idx = trimmed.indexOf(':');
+      const key = trimmed.slice(0, idx).trim();
+      const value = parseScalar(trimmed.slice(idx + 1));
+      if (key === 'type') current.trigger.type = String(value ?? '');
+      if (key === 'id') current.trigger.id = String(value ?? '');
+      if (key === 'count') current.trigger.count = parseInt(String(value)) || 1;
+      continue;
+    }
+    if (indent === 4 && trimmed.includes(':')) {
+      inDescription = false; inToast = false; inTrigger = false;
+      const idx = trimmed.indexOf(':');
+      const key = trimmed.slice(0, idx).trim();
+      const value = parseScalar(trimmed.slice(idx + 1));
+      switch (key) {
+        case 'root': current.root = Boolean(value); break;
+        case 'parent': current.parent = String(value ?? ''); break;
+        case 'title': current.title = String(value ?? ''); break;
+        case 'icon': current.icon = String(value ?? 'STONE'); break;
+        case 'icon-ce': current.iconCe = String(value ?? ''); break;
+        case 'rarity': current.rarity = String(value ?? 'common'); break;
+        case 'x': current.x = Number(value ?? 0); break;
+        case 'y': current.y = Number(value ?? 0); break;
+        case 'background': current.background = String(value ?? ''); break;
+        case 'show-toast': current.showToast = Boolean(value); break;
+        case 'announce-chat': current.announceChat = Boolean(value); break;
+        case 'hidden': current.hidden = Boolean(value); break;
+        case 'repeatable': current.repeatable = Boolean(value); break;
+        case 'daily-limit': current.dailyLimit = Number(value ?? 0); break;
+        case 'triggers-mode': current.triggersMode = String(value ?? 'ordered'); break;
+      }
+    }
+  }
+
+  if (current) advancements.push(current);
+  if (!advancements.length) throw new Error('没有解析到任何 advancements 节点，请确认 YAML 格式正确。');
+  return { advancements, page: parsedPage };
+}
+
+function toYaml() {
+  const lines = [
+    'page:',
+    `  namespace: ${state.page.namespace}`,
+    `  background: ${state.page.background}`,
+    `  auto-show-tab: ${state.page.autoShowTab}`,
+    `  auto-grant-root: ${state.page.autoGrantRoot}`,
+    `  show-toast-to-team: ${state.page.showToastToTeam}`,
+    `  announce-chat-only-to-team: ${state.page.announceChatOnlyToTeam}`,
+    '',
+    'advancements:'
+  ];
+  for (const adv of state.advancements) {
+    lines.push(`  ${adv.id}:`);
+    if (adv.root) lines.push('    root: true');
+    else if (adv.parent) lines.push(`    parent: ${adv.parent}`);
+    lines.push(`    title: ${escapeYamlString(adv.title)}`);
+    if (adv.description?.length) {
+      const filteredDesc = adv.description.filter(line => line.length > 0);
+      if (filteredDesc.length) {
+        lines.push('    description:');
+        filteredDesc.forEach(line => lines.push(`      - ${escapeYamlString(line)}`));
+      }
+    }
+    lines.push(`    icon: ${adv.icon || 'STONE'}`);
+    if (adv.iconCe) lines.push(`    icon-ce: ${adv.iconCe}`);
+    lines.push(`    rarity: ${adv.rarity || 'common'}`);
+    lines.push(`    x: ${Number.isFinite(adv.x) ? adv.x : 0}`);
+    lines.push(`    y: ${Math.max(0, Number.isFinite(adv.y) ? adv.y : 0)}`);
+    if (adv.background) lines.push(`    background: ${adv.background}`);
+    lines.push(`    show-toast: ${Boolean(adv.showToast)}`);
+    lines.push(`    announce-chat: ${Boolean(adv.announceChat)}`);
+    lines.push(`    hidden: ${Boolean(adv.hidden)}`);
+    if (adv.toast && (adv.toast.enabled || adv.toast.title || adv.toast.icon)) {
+      lines.push('    toast:');
+      lines.push(`      enabled: ${Boolean(adv.toast.enabled)}`);
+      if (adv.toast.title) lines.push(`      title: ${escapeYamlString(adv.toast.title)}`);
+      if (adv.toast.icon) lines.push(`      icon: ${adv.toast.icon}`);
+    }
+    const noTargetTypes = new Set(['player_join_first', 'player_death', 'offhand_swap']);
+    if (adv.trigger?.type && (adv.trigger.id || noTargetTypes.has(adv.trigger.type))) {
+      lines.push('    trigger:');
+      lines.push(`      type: ${adv.trigger.type}`);
+      if (adv.trigger.id) lines.push(`      id: ${adv.trigger.id}`);
+      if (adv.trigger.count > 1) lines.push(`      count: ${adv.trigger.count}`);
+    }
+    if (adv.triggers?.length) {
+      if ((adv.triggersMode || 'ordered') !== 'ordered') lines.push(`    triggers-mode: ${adv.triggersMode}`);
+      lines.push('    triggers:');
+      for (const t of adv.triggers) {
+        lines.push(`      - type: ${t.type}`);
+        if (t.id) lines.push(`        id: ${t.id}`);
+        if (t.count > 1) lines.push(`        count: ${t.count}`);
+      }
+    }
+    if (adv.repeatable) lines.push('    repeatable: true');
+    if (adv.dailyLimit > 0) lines.push(`    daily-limit: ${adv.dailyLimit}`);
+    if (adv.rewards?.commands?.length) {
+      const filteredCmds = adv.rewards.commands.filter(cmd => cmd.length > 0);
+      if (filteredCmds.length) {
+        lines.push('    rewards:');
+        lines.push('      commands:');
+        filteredCmds.forEach(command => lines.push(`        - ${escapeYamlString(command)}`));
+      }
+    }
+    lines.push('');
+  }
+  return lines.join('\n').trimEnd() + '\n';
+}
+
+function validateAdvancements() {
+  const errors = [];
+  const ids = new Set();
+  const roots = state.advancements.filter(a => a.root);
+  if (state.advancements.length === 0) errors.push('至少需要一个成就。');
+  if (roots.length === 0) errors.push('必须有一个 root 成就。');
+  if (roots.length > 1) errors.push('root 成就只能有一个。');
+
+  for (const adv of state.advancements) {
+    if (!adv.id || !adv.id.trim()) errors.push('存在空的成就 ID。');
+    if (ids.has(adv.id)) errors.push(`成就 ID 重复：${adv.id}`);
+    ids.add(adv.id);
+    if (!adv.title || !adv.title.trim()) errors.push(`成就 ${adv.id} 缺少 title。`);
+    if ((!adv.icon || !adv.icon.trim()) && (!adv.iconCe || !adv.iconCe.trim())) errors.push(`成就 ${adv.id} 至少需要 icon 或 icon-ce。`);
+    if (adv.iconCe && !String(adv.iconCe).includes(':')) errors.push(`成就 ${adv.id} 的 icon-ce 必须是 namespace:id。`);
+    const noTargetTypes = new Set(['player_join_first', 'player_death', 'offhand_swap']);
+    const noNamespaceTypes = new Set(['bartershop_trade_success','bartershop_trade_fail','bartershop_trade_attempt','player_statistic','mythicmobs_kill','player_join_first','player_death','block_break','block_interact','offhand_swap','papi_check','player_command','worldguard_region','fake_block_bomb_break','craft_item','fish_item','enchant_item','lands_area_enter','lands_area_leave','lands_first_enter']);
+    const namespaceWildcardTypes = new Set(['vanilla_advancement','ce_block_place','ce_block_break','ce_block_interact','ce_furniture_place','ce_furniture_break','ce_furniture_interact','ce_item_get']);
+    if (adv.trigger?.type && !noTargetTypes.has(adv.trigger.type) && !adv.trigger.id) errors.push(`成就 ${adv.id} 的 trigger.id 不能为空。`);
+    if (adv.trigger?.type && adv.trigger.id && !noNamespaceTypes.has(adv.trigger.type) && !namespaceWildcardTypes.has(adv.trigger.type) && !String(adv.trigger.id).includes(':')) errors.push(`成就 ${adv.id} 的 trigger.id 必须是 namespace:id。`);
+    if (Number(adv.y) < 0) errors.push(`成就 ${adv.id} 的 y 不能小于 0。`);
+    if (adv.root) {
+      if (adv.parent) errors.push(`root 成就 ${adv.id} 不应再配置 parent。`);
+    } else {
+      if (!adv.parent) errors.push(`非 root 成就 ${adv.id} 必须配置 parent。`);
+      if (adv.parent === adv.id) errors.push(`成就 ${adv.id} 的 parent 不能指向自己。`);
+    }
+  }
+
+  for (const adv of state.advancements) {
+    if (adv.parent && !ids.has(adv.parent)) errors.push(`成就 ${adv.id} 的父成就不存在：${adv.parent}`);
+  }
+  return errors;
+}
+
+function setFormDisabled(disabled) {
+  formControls.forEach(control => control.disabled = disabled);
+}
+
+function updateThemeToggle() {
+  const isDark = state.theme !== 'light';
+  const icon = els.themeToggleBtn.querySelector('.theme-icon');
+  if (icon) icon.textContent = isDark ? '☀' : '☾';
+  els.themeToggleText.textContent = isDark ? '浅色' : '深色';
+  els.themeToggleBtn.setAttribute('aria-pressed', String(!isDark));
+  const nextLabel = isDark ? '切换到浅色模式' : '切换到深色模式';
+  els.themeToggleBtn.setAttribute('aria-label', nextLabel);
+  els.themeToggleBtn.setAttribute('title', nextLabel);
+}
+
+function setTheme(theme, persist = true) {
+  state.theme = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', state.theme);
+  if (persist) {
+    try { localStorage.setItem(THEME_STORAGE_KEY, state.theme); } catch {}
+  }
+  updateThemeToggle();
+}
+
+function updateSummaryState(errors) {
+  const current = getSelected();
+  if (current) els.selectionSummary.textContent = `当前：${current.id}`;
+  else if (state.advancements.length) els.selectionSummary.textContent = '请选择一个成就开始编辑';
+  else els.selectionSummary.textContent = '还没有成就，请先新增或导入';
+
+  if (errors.length) {
+    els.validationBadge.className = 'status-pill error';
+    els.validationBadge.textContent = `${errors.length} 个问题待处理`;
+    return;
+  }
+
+  els.validationBadge.className = `status-pill ${state.advancements.length ? 'success' : 'neutral'}`;
+  els.validationBadge.textContent = state.advancements.length ? '结构校验通过' : '待校验';
+}
+
+function renderSidePanels() {
+  els.sideTabButtons.forEach(button => {
+    const active = button.dataset.sideTab === state.activeSideTab;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', String(active));
+    button.tabIndex = active ? 0 : -1;
+  });
+
+  els.sidePanels.forEach(panel => {
+    const active = panel.dataset.sidePanel === state.activeSideTab;
+    panel.classList.toggle('active', active);
+    panel.hidden = !active;
+  });
+}
+
+function renderMessages(extra = []) {
+  const errors = validateAdvancements();
+  updateSummaryState(errors);
+  const messages = [];
+  if (errors.length) messages.push({ type: 'error', text: errors.join('\n') });
+  else messages.push({ type: 'success', text: '校验通过，可以导出。' });
+  extra.forEach(m => messages.push(m));
+  els.messages.innerHTML = messages.map(msg => `<div class="msg ${msg.type}">${escapeHtml(msg.text)}</div>`).join('');
+}
+
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function createMiniState() {
+  return {
+    color: '',
+    gradient: null,
+    rainbow: false,
+    bold: false,
+    italic: false,
+    underlined: false,
+    strikethrough: false,
+    obfuscated: false
+  };
+}
+
+function cloneMiniState(state) {
+  return {
+    ...state,
+    gradient: state.gradient ? [...state.gradient] : null
+  };
+}
+
+function normalizeMiniColor(value) {
+  const color = String(value || '').trim().toLowerCase();
+  if (!color) return '';
+  if (MINI_NAMED_COLORS[color]) return MINI_NAMED_COLORS[color];
+  if (/^#[0-9a-f]{6}$/i.test(color)) return color;
+  return '';
+}
+
+function normalizeMiniTagName(value) {
+  const tag = String(value || '').trim().toLowerCase();
+  if (tag === 'underline') return 'underlined';
+  if (tag === 'em') return 'italic';
+  return tag;
+}
+
+function parseMiniTag(rawTag) {
+  const token = String(rawTag || '').trim();
+  if (!token) return null;
+  const closing = token.startsWith('/');
+  const tag = normalizeMiniTagName(closing ? token.slice(1) : token);
+
+  if (!closing && (tag === 'newline' || tag === 'br')) return { type: 'newline' };
+  if (!closing && tag === 'reset') return { type: 'reset' };
+
+  if (!closing) {
+    if (tag === 'rainbow' || tag.startsWith('rainbow:')) return { type: 'open', category: 'rainbow' };
+    if (tag.startsWith('gradient:')) {
+      const colors = tag.split(':').slice(1).map(normalizeMiniColor).filter(Boolean);
+      if (colors.length >= 2) return { type: 'open', category: 'gradient', colors };
+    }
+    if (tag.startsWith('color:')) {
+      const color = normalizeMiniColor(tag.slice(6));
+      if (color) return { type: 'open', category: 'color', color };
+    }
+    const directColor = normalizeMiniColor(tag);
+    if (directColor) return { type: 'open', category: 'color', color: directColor };
+    if (['bold', 'italic', 'underlined', 'strikethrough', 'obfuscated'].includes(tag)) {
+      return { type: 'open', category: tag };
+    }
+    return null;
+  }
+
+  if (tag === 'color' || normalizeMiniColor(tag)) return { type: 'close', category: 'color' };
+  if (['gradient', 'rainbow', 'bold', 'italic', 'underlined', 'strikethrough', 'obfuscated'].includes(tag)) {
+    return { type: 'close', category: tag };
+  }
+  return null;
+}
+
+function miniStateToMarkup(state, text) {
+  const classes = [];
+  const styles = [];
+  if (state.bold) classes.push('mm-bold');
+  if (state.italic) classes.push('mm-italic');
+  if (state.underlined) classes.push('mm-underlined');
+  if (state.strikethrough) classes.push('mm-strikethrough');
+  if (state.obfuscated) classes.push('mm-obfuscated');
+
+  if (state.gradient?.length >= 2) {
+    classes.push('mm-gradient');
+    styles.push(`background-image: linear-gradient(90deg, ${state.gradient.join(', ')})`);
+  } else if (state.rainbow) {
+    classes.push('mm-rainbow');
+    styles.push(`background-image: linear-gradient(90deg, ${MINI_RAINBOW.join(', ')})`);
+  } else if (state.color) {
+    styles.push(`color: ${state.color}`);
+  }
+
+  const classAttr = classes.length ? ` class="${classes.join(' ')}"` : '';
+  const styleAttr = styles.length ? ` style="${styles.join('; ')}"` : '';
+  return `<span${classAttr}${styleAttr}>${escapeHtml(text)}</span>`;
+}
+
+function renderMiniMessagePreview(text) {
+  const input = String(text || '').replace(/\r/g, '');
+  const segments = [];
+  const stack = [];
+  let state = createMiniState();
+  let buffer = '';
+
+  const flush = () => {
+    if (!buffer) return;
+    segments.push({ text: buffer, state: cloneMiniState(state) });
+    buffer = '';
+  };
+
+  const restoreState = category => {
+    for (let i = stack.length - 1; i >= 0; i--) {
+      if (stack[i].category === category) {
+        state = cloneMiniState(stack[i].prev);
+        stack.length = i;
+        return;
+      }
+    }
+  };
+
+  for (let index = 0; index < input.length; index++) {
+    const char = input[index];
+
+    if (char === '<') {
+      const end = input.indexOf('>', index + 1);
+      if (end > index) {
+        const parsedTag = parseMiniTag(input.slice(index + 1, end));
+        if (parsedTag) {
+          flush();
+          if (parsedTag.type === 'newline') {
+            segments.push({ newline: true });
+          } else if (parsedTag.type === 'reset') {
+            stack.length = 0;
+            state = createMiniState();
+          } else if (parsedTag.type === 'open') {
+            stack.push({ category: parsedTag.category, prev: cloneMiniState(state) });
+            if (parsedTag.category === 'color') {
+              state.color = parsedTag.color;
+              state.gradient = null;
+              state.rainbow = false;
+            } else if (parsedTag.category === 'gradient') {
+              state.gradient = parsedTag.colors;
+              state.rainbow = false;
+            } else if (parsedTag.category === 'rainbow') {
+              state.rainbow = true;
+              state.gradient = null;
+            } else {
+              state[parsedTag.category] = true;
+            }
+          } else if (parsedTag.type === 'close') {
+            restoreState(parsedTag.category);
+          }
+          index = end;
+          continue;
+        }
+      }
+    }
+
+    if (char === '&') {
+      const hexCandidate = input.slice(index + 1, index + 8);
+      if (/^#[0-9a-f]{6}$/i.test(hexCandidate)) {
+        flush();
+        state.color = hexCandidate;
+        state.gradient = null;
+        state.rainbow = false;
+        state.bold = false;
+        state.italic = false;
+        state.underlined = false;
+        state.strikethrough = false;
+        state.obfuscated = false;
+        index += 7;
+        continue;
+      }
+
+      const code = input[index + 1]?.toLowerCase();
+      if (MINI_LEGACY_CODES[code]) {
+        flush();
+        state.color = MINI_LEGACY_CODES[code];
+        state.gradient = null;
+        state.rainbow = false;
+        state.bold = false;
+        state.italic = false;
+        state.underlined = false;
+        state.strikethrough = false;
+        state.obfuscated = false;
+        index += 1;
+        continue;
+      }
+      if (MINI_FORMAT_CODES[code]) {
+        flush();
+        state[MINI_FORMAT_CODES[code]] = true;
+        index += 1;
+        continue;
+      }
+      if (code === 'r') {
+        flush();
+        stack.length = 0;
+        state = createMiniState();
+        index += 1;
+        continue;
+      }
+    }
+
+    if (char === '\n') {
+      flush();
+      segments.push({ newline: true });
+      continue;
+    }
+
+    buffer += char;
+  }
+
+  flush();
+
+  return segments.map(segment => {
+    if (segment.newline) return '<br>';
+    return miniStateToMarkup(segment.state, segment.text);
+  }).join('');
+}
+
+function updateMiniPreview(element, text, placeholder) {
+  const value = String(text || '').trim();
+  if (!value) {
+    element.innerHTML = `<span class="mini-preview-placeholder">${escapeHtml(placeholder)}</span>`;
+    return;
+  }
+  element.innerHTML = renderMiniMessagePreview(text);
+}
+
+function renderMiniPreviews(adv) {
+  if (!adv) {
+    updateMiniPreview(els.miniPreviewTitle, '', '输入标题后在这里查看实时效果');
+    updateMiniPreview(els.miniPreviewDescription, '', '输入描述后在这里查看多行实时效果');
+    updateMiniPreview(els.miniPreviewToast, '', '输入 toast.title 后在这里查看提醒文案效果');
+    return;
+  }
+  updateMiniPreview(els.miniPreviewTitle, adv.title || '', '输入标题后在这里查看实时效果');
+  updateMiniPreview(els.miniPreviewDescription, (adv.description || []).join('\n'), '输入描述后在这里查看多行实时效果');
+  updateMiniPreview(els.miniPreviewToast, adv.toast?.title || '', '输入 toast.title 后在这里查看提醒文案效果');
+}
+
+function renderList() {
+  const keyword = state.search.trim().toLowerCase();
+  const items = state.advancements.filter(adv => !keyword || adv.id.toLowerCase().includes(keyword) || (adv.title || '').toLowerCase().includes(keyword));
+  els.stats.textContent = `${state.advancements.length} 项`;
+  els.advList.innerHTML = items.map(adv => `
+    <div class="adv-item ${adv.id === state.selectedId ? 'active' : ''}" data-id="${adv.id}">
+      <div class="adv-item-head">
+        <div class="id">${escapeHtml(adv.id)}</div>
+        <span class="list-pill" style="color:${rarityColor(adv.rarity)}; border-color:${rarityColor(adv.rarity)}44;">${escapeHtml(adv.rarity || 'common')}</span>
+      </div>
+      <div class="adv-title">${escapeHtml(adv.title || '(未命名)')}</div>
+      <div class="meta">${adv.root ? 'Root 节点' : '父级：' + escapeHtml(adv.parent || '未设置')}</div>
+    </div>
+  `).join('') || '<div class="empty-state compact">没有匹配的成就。<br>试试其他关键词，或新增一个成就。</div>';
+  document.querySelectorAll('.adv-item').forEach(item => item.addEventListener('click', () => { state.selectedId = item.dataset.id; render(); }));
+}
+
+function renderParentOptions() {
+  const selected = getSelected();
+  const options = ['<option value="">(无)</option>'];
+  for (const adv of state.advancements) {
+    if (selected && adv.id === selected.id) continue;
+    options.push(`<option value="${adv.id}">${adv.id}</option>`);
+  }
+  els.parentInput.innerHTML = options.join('');
+}
+
+function getSelected() {
+  return state.advancements.find(a => a.id === state.selectedId) || null;
+}
+
+function renderTriggersChain(adv) {
+  const list = els.triggersChainList;
+  list.innerHTML = '';
+  const triggers = adv?.triggers || [];
+  const typeOptions = ['vanilla_advancement','ce_block_place','ce_block_break','ce_block_interact','ce_furniture_place','ce_furniture_break','ce_furniture_interact','ce_item_get','bartershop_trade_success','bartershop_trade_fail','bartershop_trade_attempt','player_statistic','mythicmobs_kill','player_join_first','player_death','block_break','block_interact','offhand_swap','papi_check','player_command','worldguard_region','fake_block_bomb_break','craft_item','fish_item','enchant_item','lands_area_enter','lands_area_leave','lands_first_enter'];
+  const noTargetTypes = new Set(['player_join_first', 'player_death', 'offhand_swap']);
+  triggers.forEach((t, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:6px;align-items:center;';
+    const sel = document.createElement('select');
+    sel.style.flex = '1';
+    typeOptions.forEach(opt => {
+      const o = document.createElement('option');
+      o.value = opt; o.textContent = opt;
+      if (opt === t.type) o.selected = true;
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', () => updateSelected(adv => adv.triggers[i].type = sel.value));
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.placeholder = 'id'; inp.value = t.id || '';
+    inp.style.flex = '2';
+    inp.addEventListener('input', () => updateSelected(adv => adv.triggers[i].id = inp.value.trim()));
+    const cntInp = document.createElement('input');
+    cntInp.type = 'number'; cntInp.min = '1'; cntInp.placeholder = 'count';
+    cntInp.value = t.count || 1; cntInp.style.width = '60px';
+    cntInp.title = '触发次数';
+    cntInp.addEventListener('input', () => updateSelected(adv => adv.triggers[i].count = parseInt(cntInp.value) || 1));
+    const del = document.createElement('button');
+    del.type = 'button'; del.textContent = '×';
+    del.addEventListener('click', () => { updateSelected(adv => adv.triggers.splice(i, 1)); renderForm(); });
+    row.appendChild(sel); row.appendChild(inp); row.appendChild(cntInp); row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+
+function renderForm() {
+  const adv = getSelected();
+  if (!adv) {
+    els.currentBadge.textContent = '未选择';
+    els.emptyEditorState.hidden = false;
+    setFormDisabled(true);
+    [els.idInput, els.titleInput, els.descriptionInput, els.iconInput, els.iconCeInput, els.backgroundInput, els.toastTitleInput, els.toastIconInput, els.triggerIdInput, els.rewardCommandsInput, els.xInput, els.yInput].forEach(el => el.value = '');
+    [els.rootInput, els.showToastInput, els.announceChatInput, els.hiddenInput, els.toastEnabledInput].forEach(el => el.checked = false);
+    els.rarityInput.value = 'common';
+    els.triggerTypeInput.value = '';
+    renderParentOptions();
+    els.parentInput.value = '';
+    renderMiniPreviews(null);
+    return;
+  }
+  els.emptyEditorState.hidden = true;
+  setFormDisabled(false);
+  els.currentBadge.textContent = adv.root ? `${adv.id} · root` : adv.id;
+  renderParentOptions();
+  els.idInput.value = adv.id;
+  els.parentInput.value = adv.parent || '';
+  els.titleInput.value = adv.title || '';
+  els.descriptionInput.value = (adv.description || []).join('\n');
+  els.iconInput.value = adv.icon || '';
+  els.iconCeInput.value = adv.iconCe || '';
+  els.rarityInput.value = adv.rarity || 'common';
+  els.xInput.value = adv.x;
+  els.yInput.value = adv.y;
+  els.backgroundInput.value = adv.background || '';
+  els.rootInput.checked = Boolean(adv.root);
+  els.showToastInput.checked = Boolean(adv.showToast);
+  els.announceChatInput.checked = Boolean(adv.announceChat);
+  els.hiddenInput.checked = Boolean(adv.hidden);
+  els.toastEnabledInput.checked = Boolean(adv.toast?.enabled);
+  els.toastTitleInput.value = adv.toast?.title || '';
+  els.toastIconInput.value = adv.toast?.icon || '';
+  els.triggerTypeInput.value = adv.trigger?.type || '';
+  els.triggerIdInput.value = adv.trigger?.id || '';
+  els.triggerCountInput.value = adv.trigger?.count || 1;
+  els.repeatableInput.checked = Boolean(adv.repeatable);
+  els.dailyLimitInput.value = adv.dailyLimit || 0;
+  renderTriggersChain(adv);
+  els.rewardCommandsInput.value = (adv.rewards?.commands || []).join('\n');
+  renderMiniPreviews(adv);
+}
+
+function rarityColor(rarity) {
+  switch ((rarity || '').toLowerCase()) {
+    case 'legendary': return '#f59e0b';
+    case 'epic': return '#a855f7';
+    case 'rare': return '#22d3ee';
+    case 'uncommon': return '#22c55e';
+    default: return '#cbd5e1';
+  }
+}
+
+function computeCoordinateConflicts() {
+  const map = new Map();
+  for (const adv of state.advancements) {
+    const key = `${Number(adv.x) || 0},${Math.max(0, Number(adv.y) || 0)}`;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(adv.id);
+  }
+  return map;
+}
+
+function setSelectedById(id) {
+  state.selectedId = id;
+  render();
+}
+
+function updateAdvancementPosition(id, x, y) {
+  const adv = state.advancements.find(item => item.id === id);
+  if (!adv) return;
+  adv.x = Number.isFinite(x) ? Math.round(x) : 0;
+  adv.y = Math.max(0, Number.isFinite(y) ? Math.round(y) : 0);
+}
+
+function populateMaterialList() {
+  document.getElementById('materialList').innerHTML = MATERIALS.map(m => `<option value="${m}"></option>`).join('');
+}
+
+function bindCoordinateInteractions(meta) {
+  const preview = els.coordPreview;
+  const nodes = preview.querySelectorAll('.coord-node');
+  preview.onmousedown = event => {
+    if (event.target.closest('.coord-node')) return;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startScrollLeft = preview.scrollLeft;
+    const startScrollTop = preview.scrollTop;
+    preview.classList.add('dragging-canvas');
+    const onMove = moveEvent => {
+      preview.scrollLeft = startScrollLeft - (moveEvent.clientX - startX);
+      preview.scrollTop = startScrollTop - (moveEvent.clientY - startY);
+    };
+    const onUp = () => {
+      preview.classList.remove('dragging-canvas');
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  nodes.forEach(node => {
+    node.onmousedown = event => {
+      event.stopPropagation();
+      const id = node.dataset.id;
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const originalX = Number(node.dataset.gridX);
+      const originalY = Number(node.dataset.gridY);
+      let moved = false;
+      const onMove = moveEvent => {
+        const dx = moveEvent.clientX - startX;
+        const dy = moveEvent.clientY - startY;
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+        const nextX = Math.round(originalX + dx / meta.cellWidth);
+        const nextY = Math.max(0, Math.round(originalY + dy / meta.cellHeight));
+        node.style.left = `${meta.padding + (nextX - meta.minX) * meta.cellWidth}px`;
+        node.style.top = `${meta.padding + (nextY - meta.minY) * meta.cellHeight}px`;
+        const metaLine = node.querySelector('.node-meta');
+        if (metaLine) metaLine.textContent = `(${nextX}, ${nextY}) · ${node.dataset.rarity || 'common'}`;
+      };
+      const onUp = upEvent => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        if (!moved) return setSelectedById(id);
+        const dx = upEvent.clientX - startX;
+        const dy = upEvent.clientY - startY;
+        updateAdvancementPosition(id, originalX + dx / meta.cellWidth, originalY + dy / meta.cellHeight);
+        state.selectedId = id;
+        const updated = state.advancements.find(a => a.id === id);
+        render([{ type: 'info', text: `已拖拽 ${id} 到 (${updated.x}, ${updated.y})` }]);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    };
+    node.onclick = event => { event.stopPropagation(); setSelectedById(node.dataset.id); };
+  });
+}
+
+function renderCoordinatePreview() {
+  if (!state.advancements.length) {
+    els.coordSummary.textContent = '暂无成就';
+    els.coordPreview.innerHTML = '<div class="coord-empty">暂无成就可预览<br>请先新增成就或导入 YAML。</div>';
+    return;
+  }
+  const coords = state.advancements.map(adv => ({ id: adv.id, x: Number(adv.x) || 0, y: Math.max(0, Number(adv.y) || 0) }));
+  const minX = Math.min(...coords.map(c => c.x));
+  const maxX = Math.max(...coords.map(c => c.x));
+  const minY = Math.min(...coords.map(c => c.y));
+  const maxY = Math.max(...coords.map(c => c.y));
+  const cellWidth = 140, cellHeight = 100, padding = 20;
+  const width = Math.max(360, (maxX - minX + 1) * cellWidth + padding * 2);
+  const height = Math.max(220, (maxY - minY + 1) * cellHeight + padding * 2);
+  const lookup = new Map(state.advancements.map(adv => [adv.id, adv]));
+  const conflicts = computeCoordinateConflicts();
+  const centers = new Map();
+
+  for (const adv of state.advancements) {
+    const x = Number(adv.x) || 0;
+    const y = Math.max(0, Number(adv.y) || 0);
+    const left = padding + (x - minX) * cellWidth;
+    const top = padding + (y - minY) * cellHeight;
+    centers.set(adv.id, { left, top, centerX: left + 62, centerY: top + 39, x, y });
+  }
+
+  const lineMarkup = state.advancements.filter(adv => adv.parent && lookup.has(adv.parent)).map(adv => {
+    const from = centers.get(adv.parent), to = centers.get(adv.id);
+    if (!from || !to) return '';
+    return `<line x1="${from.centerX}" y1="${from.centerY}" x2="${to.centerX}" y2="${to.centerY}"></line>`;
+  }).join('');
+
+  const nodeMarkup = state.advancements.map(adv => {
+    const point = centers.get(adv.id);
+    const key = `${Number(adv.x) || 0},${Math.max(0, Number(adv.y) || 0)}`;
+    const isConflict = (conflicts.get(key) || []).length > 1;
+    const classes = ['coord-node'];
+    if (adv.id === state.selectedId) classes.push('selected');
+    if (adv.root) classes.push('root');
+    if (isConflict) classes.push('conflict');
+    const title = `${adv.id}\n标题: ${adv.title || ''}\n坐标: (${Number(adv.x) || 0}, ${Math.max(0, Number(adv.y) || 0)})`;
+    return `
+      <div class="${classes.join(' ')}" data-id="${adv.id}" data-grid-x="${point.x}" data-grid-y="${point.y}" data-rarity="${escapeHtml(adv.rarity || 'common')}" title="${escapeHtml(title)}" style="left:${point.left}px; top:${point.top}px; border-color:${isConflict ? '#f87171' : rarityColor(adv.rarity)}">
+        <div class="node-id">${escapeHtml(adv.id)}</div>
+        <div class="node-title" style="color:${rarityColor(adv.rarity)}">${escapeHtml(adv.title || '(未命名)')}</div>
+        <div class="node-meta">(${Number(adv.x) || 0}, ${Math.max(0, Number(adv.y) || 0)}) · ${escapeHtml(adv.rarity || 'common')}</div>
+      </div>`;
+  }).join('');
+
+  const conflictCount = Array.from(conflicts.values()).filter(ids => ids.length > 1).length;
+  els.coordSummary.textContent = `范围 X:${minX}~${maxX} · Y:${minY}~${maxY}${conflictCount ? ` · 冲突 ${conflictCount} 处` : ''}`;
+  els.coordPreview.innerHTML = `<div class="coord-canvas" style="width:${width}px; height:${height}px;"><svg class="coord-lines" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">${lineMarkup}</svg>${nodeMarkup}</div>`;
+  bindCoordinateInteractions({ cellWidth, cellHeight, minX, minY, padding });
+}
+
+function renderPreview() { els.yamlPreview.value = toYaml(); }
+function setActiveSideTab(tab) {
+  state.activeSideTab = tab;
+  renderSidePanels();
+}
+function render(extraMessages = []) {
+  renderList();
+  renderForm();
+  renderCoordinatePreview();
+  renderPreview();
+  renderMessages(extraMessages);
+  renderSidePanels();
+}
+function updateSelected(mutator) { const adv = getSelected(); if (!adv) return; mutator(adv); if (adv.root) adv.parent = ''; render(); }
+function updateSelectedTextArea(mutator) {
+  const adv = getSelected();
+  if (!adv) return;
+  mutator(adv);
+  if (adv.root) adv.parent = '';
+  renderPreview();
+  renderMessages();
+  renderMiniPreviews(adv);
+}
+function bindInput(id, handler, eventName = 'input') { document.getElementById(id).addEventListener(eventName, event => handler(event.target)); }
+
+function importYaml(text) {
+  try {
+    const result = parseYaml(text);
+    state.advancements = result.advancements;
+    if (result.page) {
+      if (result.page.namespace) state.page.namespace = result.page.namespace;
+      if (result.page.background) state.page.background = result.page.background;
+      if (result.page.autoShowTab !== undefined) state.page.autoShowTab = result.page.autoShowTab;
+      if (result.page.autoGrantRoot !== undefined) state.page.autoGrantRoot = result.page.autoGrantRoot;
+      if (result.page.showToastToTeam !== undefined) state.page.showToastToTeam = result.page.showToastToTeam;
+      if (result.page.announceChatOnlyToTeam !== undefined) state.page.announceChatOnlyToTeam = result.page.announceChatOnlyToTeam;
+    }
+    state.selectedId = state.advancements[0]?.id || null;
+    render([{ type: 'info', text: `已导入 ${state.advancements.length} 个成就。` }]);
+  } catch (error) {
+    render([{ type: 'error', text: '导入失败：' + error.message }]);
+  }
+}
+
+document.getElementById('loadSampleBtn').addEventListener('click', () => importYaml(sampleYaml));
+document.getElementById('addAdvBtn').addEventListener('click', () => {
+  const adv = createDefaultAdvancement();
+  state.advancements.push(adv);
+  state.selectedId = adv.id;
+  render([{ type: 'info', text: `已新增成就 ${adv.id}` }]);
+});
+document.getElementById('duplicateBtn').addEventListener('click', () => {
+  const current = getSelected();
+  if (!current) return render([{ type: 'error', text: '请先选择一个成就。' }]);
+  const copy = JSON.parse(JSON.stringify(current));
+  copy.id = nextId();
+  copy.root = false;
+  if (!copy.parent) copy.parent = state.advancements.find(a => a.root)?.id || '';
+  state.advancements.push(copy);
+  state.selectedId = copy.id;
+  render([{ type: 'info', text: `已复制成就为 ${copy.id}` }]);
+});
+document.getElementById('deleteBtn').addEventListener('click', () => {
+  const current = getSelected();
+  if (!current) return render([{ type: 'error', text: '请先选择一个成就。' }]);
+  if (!confirm(`确定删除成就 ${current.id} 吗？`)) return;
+  state.advancements = state.advancements.filter(a => a.id !== current.id);
+  for (const adv of state.advancements) if (adv.parent === current.id) adv.parent = '';
+  state.selectedId = state.advancements[0]?.id || null;
+  render([{ type: 'info', text: `已删除成就 ${current.id}` }]);
+});
+document.getElementById('importTextBtn').addEventListener('click', () => {
+  const text = prompt('把 advancements/example.yml 内容粘贴进来：', els.yamlPreview.value || sampleYaml);
+  if (text) importYaml(text);
+});
+document.getElementById('importFileBtn').addEventListener('click', () => els.fileInput.click());
+els.themeToggleBtn.addEventListener('click', () => setTheme(state.theme === 'light' ? 'dark' : 'light'));
+document.getElementById('validateBtn').addEventListener('click', () => render());
+document.getElementById('syncPreviewBtn').addEventListener('click', () => {
+  setActiveSideTab('yaml');
+  render([{ type: 'info', text: '已从当前表单刷新 YAML 预览。' }]);
+});
+document.getElementById('applyPreviewBtn').addEventListener('click', () => importYaml(els.yamlPreview.value));
+document.getElementById('clearPreviewBtn').addEventListener('click', () => {
+  setActiveSideTab('yaml');
+  els.yamlPreview.value = '';
+  render([{ type: 'info', text: '预览区已清空。' }]);
+});
+document.getElementById('formatBtn').addEventListener('click', () => {
+  setActiveSideTab('yaml');
+  render([{ type: 'info', text: 'YAML 预览已刷新。' }]);
+});
+document.getElementById('copyYamlBtn').addEventListener('click', async () => {
+  try {
+    setActiveSideTab('yaml');
+    const yaml = toYaml();
+    await navigator.clipboard.writeText(yaml);
+    els.yamlPreview.value = yaml;
+    render([{ type: 'success', text: 'YAML 已复制到剪贴板。' }]);
+  } catch {
+    render([{ type: 'error', text: '复制失败，请手动复制预览区内容。' }]);
+  }
+});
+document.getElementById('downloadYamlBtn').addEventListener('click', () => {
+  setActiveSideTab('yaml');
+  const yaml = toYaml();
+  const blob = new Blob([yaml], { type: 'text/yaml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'example.yml';
+  a.click();
+  URL.revokeObjectURL(url);
+  render([{ type: 'success', text: '已下载 example.yml。' }]);
+});
+
+els.searchInput.addEventListener('input', e => { state.search = e.target.value || ''; renderList(); });
+els.sideTabButtons.forEach(button => button.addEventListener('click', () => setActiveSideTab(button.dataset.sideTab)));
+els.fileInput.addEventListener('change', async event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const text = await file.text();
+  importYaml(text);
+  event.target.value = '';
+});
+
+bindInput('idInput', input => updateSelected(adv => adv.id = input.value.trim()));
+bindInput('parentInput', input => updateSelected(adv => adv.parent = input.value), 'change');
+bindInput('titleInput', input => updateSelected(adv => adv.title = input.value));
+bindInput('descriptionInput', input => updateSelectedTextArea(adv => adv.description = input.value.split('\n').map(v => v.trim())));
+bindInput('iconInput', input => updateSelected(adv => adv.icon = input.value.trim().toUpperCase()));
+bindInput('iconCeInput', input => updateSelected(adv => adv.iconCe = input.value.trim()));
+bindInput('rarityInput', input => updateSelected(adv => adv.rarity = input.value), 'change');
+bindInput('xInput', input => updateSelected(adv => adv.x = Number(input.value || 0)));
+bindInput('yInput', input => updateSelected(adv => adv.y = Number(input.value || 0)));
+bindInput('backgroundInput', input => updateSelected(adv => adv.background = input.value.trim()));
+bindInput('rootInput', input => updateSelected(adv => {
+  if (input.checked) {
+    state.advancements.forEach(item => item.root = false);
+    adv.root = true;
+    adv.parent = '';
+  } else {
+    adv.root = false;
+  }
+}), 'change');
+bindInput('showToastInput', input => updateSelected(adv => adv.showToast = input.checked), 'change');
+bindInput('announceChatInput', input => updateSelected(adv => adv.announceChat = input.checked), 'change');
+bindInput('hiddenInput', input => updateSelected(adv => adv.hidden = input.checked), 'change');
+bindInput('toastEnabledInput', input => updateSelected(adv => adv.toast.enabled = input.checked), 'change');
+bindInput('toastTitleInput', input => updateSelected(adv => adv.toast.title = input.value));
+bindInput('toastIconInput', input => updateSelected(adv => adv.toast.icon = input.value.trim().toUpperCase()));
+bindInput('triggerTypeInput', input => updateSelected(adv => adv.trigger.type = input.value), 'change');
+bindInput('triggerIdInput', input => updateSelected(adv => adv.trigger.id = input.value.trim()));
+bindInput('triggerCountInput', input => updateSelected(adv => adv.trigger.count = Math.max(1, parseInt(input.value) || 1)));
+bindInput('repeatableInput', input => updateSelected(adv => adv.repeatable = input.checked), 'change');
+bindInput('dailyLimitInput', input => updateSelected(adv => adv.dailyLimit = Math.max(0, parseInt(input.value) || 0)));
+bindInput('rewardCommandsInput', input => updateSelectedTextArea(adv => adv.rewards.commands = input.value.split('\n').map(v => v.trim())));
+
+els.addTriggerChainBtn.addEventListener('click', () => {
+  updateSelected(adv => {
+    adv.triggers = adv.triggers || [];
+    adv.triggers.push({ type: 'block_break', id: '', count: 1 });
+  });
+  renderForm();
+});
+
+setTheme(state.theme, false);
+populateMaterialList();
+importYaml(sampleYaml);
+</script>
+</body>
+</html>
