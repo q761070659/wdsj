@@ -17,6 +17,7 @@ export default defineConfig({
       { text: '配置参考', link: '/config/global' },
       { text: '触发器', link: '/triggers/overview' },
       { text: '开发者', link: '/dev/api' },
+      { text: '修道', link: '/xiudao/commands' },
       { text: '可视化编辑器', link: '/editor.html', target: '_blank' },
     ],
     sidebar: {
@@ -65,6 +66,14 @@ export default defineConfig({
             { text: 'API 概览', link: '/dev/api' },
             { text: '架构说明', link: '/dev/architecture' },
             { text: '可视化编辑器', link: '/dev/editor' },
+          ],
+        },
+      ],
+      '/xiudao/': [
+        {
+          text: '修道',
+          items: [
+            { text: '管理命令', link: '/xiudao/commands' },
           ],
         },
       ],
