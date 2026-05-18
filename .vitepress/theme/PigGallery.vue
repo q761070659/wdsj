@@ -6,20 +6,20 @@
 
 <script setup>
 const images = [
-  '/不赖猪.jpg',
-  '/俯视猪.jpg',
-  '/分布猪.png',
-  '/唱片猪(旋转猪).gif',
-  '/干嘛…….jpg',
-  '/抽象猪.png',
-  '/拱翻群友.jpg',
-  '/更多的猪.jpg',
-  '/畅销猪.png',
-  '/笨蛋.png',
-  '/董卓猪(真是一对苦命鸳鸯啊).png',
-  '/诶_.png',
-  '/辅猪 (1).jpg',
-  '/当你想对我恶语相向时,请注意屏幕后面的我可是这样的.jpg',
+  '/wdsj/不赖猪.jpg',
+  '/wdsj/俯视猪.jpg',
+  '/wdsj/分布猪.png',
+  '/wdsj/唱片猪(旋转猪).gif',
+  '/wdsj/干嘛…….jpg',
+  '/wdsj/抽象猪.png',
+  '/wdsj/拱翻群友.jpg',
+  '/wdsj/更多的猪.jpg',
+  '/wdsj/畅销猪.png',
+  '/wdsj/笨蛋.png',
+  '/wdsj/董卓猪(真是一对苦命鸳鸯啊).png',
+  '/wdsj/诶_.png',
+  '/wdsj/辅猪 (1).jpg',
+  '/wdsj/当你想对我恶语相向时,请注意屏幕后面的我可是这样的.jpg',
 ]
 </script>
 
