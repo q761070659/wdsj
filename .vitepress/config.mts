@@ -10,7 +10,7 @@ export default defineConfig({
   title: 'CustomAdvancements Wiki',
   description: 'CustomAdvancements 插件文档',
   lang: 'zh-CN',
-  head: [['link', { rel: 'icon', href: '/wdsj/安安的猪猪.jpeg' }]],
+  head: [['link', { rel: 'icon', href: '/安安的猪猪.jpeg' }]],
   themeConfig: {
     nav: [
       { text: '用户指南', link: '/guide/installation' },

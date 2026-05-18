@@ -5,7 +5,7 @@ hero:
   text: Minecraft 自定义成就插件
   tagline: 支持多页面、多触发器、稀有度系统，兼容 CraftEngine / MythicMobs / PlaceholderAPI
   image:
-    src: /wdsj/爱学习的小猪最有出息.jpg
+    src: /爱学习的小猪最有出息.jpg
     alt: CustomAdvancements
   actions:
     - theme: brand
