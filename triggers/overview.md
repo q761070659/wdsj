@@ -41,6 +41,21 @@ trigger:
 | `lands_area_leave` | 离开 Lands 领地/区域 | Lands |
 | `lands_first_enter` | 首次进入 Lands 领地（按领地名称，每人每领地仅一次） | Lands |
 
+## 描述进度占位符
+
+所有触发器都可以配合成就 `description` 里的动态进度占位符使用，例如：
+
+```yaml
+description:
+  - "&7当前进度：&f%adv_progress_line%"
+trigger:
+  type: block_break
+  id: stone
+  count: 100
+```
+
+`%adv_progress_line%` 会按玩家显示为 `0/100`、`1/100`……这类占位符是插件内置能力，不依赖 PlaceholderAPI。完整占位符列表见[成就字段参考](/config/advancement#描述进度占位符)。
+
 ## 多触发器补充说明
 
 - `triggers` 默认是 **ordered** 模式，必须按列表顺序依次完成。
